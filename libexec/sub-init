@@ -30,6 +30,24 @@ abs_dirname() {
   cd "$cwd"
 }
 
+load_plugins() {
+
+  PLUGINS=$_SUB_ROOT/plugins/*
+  plugin_loaders=""
+
+  for plugin in ${PLUGINS[@]}
+  do
+    PLUGIN_NAME=$(basename $plugin)
+
+    if [ "$PLUGIN_NAME" != "plugin.skel" ] && [ "$PLUGIN_NAME" != "*" ]
+    then  
+      plugin_loaders="$plugin_loaders eval \"\$($_SUB_ROOT/plugins/$PLUGIN_NAME/bin/$PLUGIN_NAME init -)\";"
+    fi
+  done
+
+echo $plugin_loaders
+}
+
 root="$(abs_dirname "$0")/.."
 
 if [ -z "$print" ]; then
@@ -63,9 +81,12 @@ bash | zsh )
   ;;
 esac
 
+plugin_loaders=`load_plugins`
 commands=(`sub commands --sh`)
 IFS="|"
 cat <<EOS
+$plugin_loaders
+
 _sub_wrapper() {
   local command="\$1"
   if [ "\$#" -gt 0 ]; then
