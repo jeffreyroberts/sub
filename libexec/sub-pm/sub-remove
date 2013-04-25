@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Usage: sub pm search [package name]
+# Summary: Search known repositories for sub-modules
+# Help: This command searches all the repositories listed in libexec/sub-pm/repos.conf for sub-modules
+
+set -e
+
+shift 
+
+INSTALL="$1"
+
+DNULL="$(sub pm search update)"
+
+_SUB_REPOS_DIR="$_SUB_COMMAND_ROOT/cache/repos"
+_SUB_REPOS_PATH="$_SUB_REPOS_DIR/repos.conf"
+
+while read line           
+do          
+	if [ "$line" == "" ]; then
+		continue
+	fi
+
+	IFS=':' read -ra ADDR <<< "$line"
+	_SUB_TEMP_REPO_OWNER="${ADDR[1]}"
+
+	IFS='/' read -ra ADDR <<< "$_SUB_TEMP_REPO_OWNER"
+	_SUB_REPO_OWNER="${ADDR[0]}"
+	_SUB_REPO="$(echo ${ADDR[1]} | sed 's|.git||g')"
+
+	_SUB_LINE_DIR="$(echo $line | sed 's|[^A-Za-z0-9]||g')"
+	_SUB_LINE_PATH="$_SUB_COMMAND_ROOT/cache/$_SUB_LINE_DIR"
+
+    if [ ! -d "$_SUB_LINE_PATH" ]; then
+    	mkdir -p $_SUB_LINE_PATH
+		git clone $line $_SUB_LINE_PATH
+	fi
+
+	cd $_SUB_LINE_PATH
+
+	git pull >> /dev/null
+
+    BRANCHES="$(git branch -r)"
+    BRANCHES="$(echo $BRANCHES | sed 's|origin/master||g' | sed 's|origin/HEAD -> origin/master||g' | sed 's|. master||g')"
+    BRANCHES=($BRANCHES)
+    declare -a PACKAGES
+
+    echo ""
+    echo -e "\tsub package manager v0.1"
+    echo ""
+    echo ""
+    echo -e "    [package name]\t[package summary]"
+    echo ""
+
+	for branch in "${BRANCHES[@]}"; do
+		branch="$(echo $branch  | sed 's|origin/||g')"
+		if [ "$branch" == "$INSTALL" ]; then
+			if [[ "$branch" == mod_* ]]; then
+				_SUB_BRANCH="$branch"
+				_SUB_SUMMARY_FILE="$(echo $_SUB_BRANCH | sed 's|mod_||g')"
+				_SUB_GH_PACKAGE_URL="https://raw.github.com/$_SUB_REPO_OWNER/$_SUB_REPO/$_SUB_BRANCH/$_SUB_SUMMARY_FILE"
+				_SUB_BRANCH_SUMMARY="$(curl -s $_SUB_GH_PACKAGE_URL | awk '/^[^#]/{p=0} /^# Help:/{p=1} p' | sed 's/^# Help: //;s/^# /\\t\\t\\t/;s/^#/\\n\\t\\t\\t/')" # " | grep '# Summary:' | sed 's|<[^>]*>||g' | sed 's|# Summary:||g' | sed 's/^ *//g')"
+				package="$(echo $_SUB_BRANCH | sed 's|mod_||g' | sed 's|-| |g')"
+				package_readme="$(echo $_SUB_BRANCH | sed 's|mod_||g')"
+				PACKAGES[${#PACKAGES}]="$branch"
+				echo -e "    $package: \t$_SUB_BRANCH_SUMMARY"
+				echo ""
+				echo -e "\t\tRemoving $package"
+				echo ""
+
+				cd $_SUB_LINE_PATH
+				git checkout $branch
+				for delete_this in `find ./sub-* -type d`
+				do
+					delete_this="$(echo $delete_this | sed 's|./||g')"
+					rm -rf $_SUB_ROOT/libexec/$delete_this
+				done
+				git checkout .
+				git checkout master
+			elif [[ "$package" == plugin_* ]]; then 
+				echo "Found Plugin"
+			fi
+		fi
+	done
+
+	echo ""
+	echo "Install completed..."
+	echo ""
+done < "$_SUB_REPOS_PATH"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Usage: sub pm search update
+# Summary: Update known repositories for sub-modules
+# Help: This command updates the repos.conf file for the most up to date repo list available
+
+set -e
+
+_SUB_REPOS_URL="https://raw.github.com/jeffreyroberts/sub-module-repos/master/repos.conf"
+_SUB_REPOS_PATH="$_SUB_ROOT/libexec/sub-pm/cache/repos/repos.conf"
+
+curl -s "$_SUB_REPOS_URL" > "$_SUB_REPOS_PATH"

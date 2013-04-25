@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Usage: sub pm [ search | install | remove | config ]
+# Summary: List all Package Manager commands
+# Help: This command is used to find and install sub-modules and sub-module plugins
+
+set -e
+
+sub help pm
+
+exit
