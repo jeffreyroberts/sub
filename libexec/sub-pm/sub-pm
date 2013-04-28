@@ -5,6 +5,223 @@
 
 set -e
 
-sub help pm
+function miami_dade {
+	_SUB_TMP_VAR="$(echo $1 | sed 's|[^A-Za-z0-9]||g')"
+	_SUB_CACHE_FILE_PATH="$_SUB_ROOT/libexec/sub-pm/cache/repos/$_SUB_TMP_VAR"
+	if [ -f "$_SUB_CACHE_FILE_PATH" ] && [ ! "$2" == "update" ]; then
+		echo -e "$(cat $_SUB_CACHE_FILE_PATH)"
+	else
+		RESULTS="$(curl -s $1)"
+		WOOT=`echo -e "$RESULTS" > $_SUB_CACHE_FILE_PATH`
+		echo -e "$RESULTS"
+	fi
+}
 
-exit
+function clear {
+	local CLEAR=''
+
+	type -p clear >/dev/null && \
+		CLEAR=$(exec clear)
+	[[ -z $CLEAR ]] && type -p tput >/dev/null && \
+		CLEAR=$(exec tput clear)
+	[[ -z $CLEAR ]] && \
+		CLEAR=$'\e[H\e[2J'
+
+	echo -en "$CLEAR"
+
+	eval "function clear { echo -en '$CLEAR'; }"
+}
+
+function header {
+	clear
+    echo 
+	echo -e "\tsub package manager v0.1"
+}
+
+function update_root {
+	_SUB_REPOS_URL="https://raw.github.com/jeffreyroberts/sub-module-repos/master/repos.conf"
+	_SUB_REPOS_PATH="$_SUB_ROOT/libexec/sub-pm/cache/repos/repos.conf"
+
+	curl -s "$_SUB_REPOS_URL" > "$_SUB_REPOS_PATH"
+}
+yes="no"
+
+if [ "$1" == "" ]; then
+	sub help pm
+	exit
+fi
+
+# Provide sub completions
+if [ "$1" = "--complete" ]; then  
+	shift
+
+	while [ ! "$1" == "" ]; do
+	  if [ "$1" = "install" ] || [ "$1" = "update" ] || [ "$1" = "remove" ] || [ "$1" = "upgrade" ] || [ "$1" = "search" ]; then
+	  	echo "--help"
+	  	exit
+	  elif [ "$1" == "--yes" ]; then
+	  	yes="yes"
+	  fi
+
+	  shift
+	done
+	
+	echo "install"
+	echo "remove"
+	echo "update"
+	echo "upgrade"
+	echo "search"
+	exit;
+fi
+
+header
+
+ACTION="$(echo $1 | tr '[A-Z]' '[a-z]')"
+
+shift
+SEARCH="$@"
+_SUB_REPOS_DIR="$_SUB_COMMAND_ROOT/cache/repos"
+_SUB_REPOS_PATH="$_SUB_REPOS_DIR/repos.conf"
+
+if [ "$ACTION" == "update" ]; then
+	DNULL="$(update_root)"
+	OLD_ACTION="$ACTION"
+	ACTION="search"
+	SEARCH=""
+	rm -rf "$_SUB_REPOS_DIR/*"
+fi
+
+while read line           
+do          
+	if [ "$line" == "" ]; then
+		continue
+	fi
+
+	IFS=':' read -ra ADDR <<< "$line"
+	_SUB_TEMP_REPO_OWNER="${ADDR[1]}"
+
+	IFS='/' read -ra ADDR <<< "$_SUB_TEMP_REPO_OWNER"
+	_SUB_REPO_OWNER="${ADDR[0]}"
+	_SUB_REPO="$(echo ${ADDR[1]} | sed 's|.git||g')"
+
+	_SUB_LINE_DIR="$(echo $line | sed 's|[^A-Za-z0-9]||g')"
+	_SUB_LINE_PATH="$_SUB_COMMAND_ROOT/cache/$_SUB_LINE_DIR"
+
+    if [ ! -d "$_SUB_LINE_PATH" ]; then
+    	mkdir -p $_SUB_LINE_PATH
+		git clone $line $_SUB_LINE_PATH
+	fi
+
+	COLUMN_ONE="package name"
+	COLUMN_TWO="package summary"
+
+	cd $_SUB_LINE_PATH
+	if [ "$OLD_ACTION" == "update" ]; then
+		git pull >> /dev/null
+
+		COLUMN_ONE="action name"
+		COLUMN_TWO="package name"
+	fi
+
+    BRANCHES="$(git branch -r)"
+    BRANCHES="$(echo $BRANCHES | sed 's|origin/master||g' | sed 's|origin/HEAD -> ||g' | sed 's|. master||g')"
+    BRANCHES=($BRANCHES)
+    declare -a PACKAGES
+
+    echo
+    echo "Sub Module Repository: Dark Unknown" 
+	echo $line
+	echo
+	echo -e "    [$COLUMN_ONE]\t\t[$COLUMN_TWO]"
+	echo 
+
+	NORESULTS='false'
+	for branch in "${BRANCHES[@]}"; do
+		branch="$(echo $branch  | sed 's|origin/||g')"
+		_SUB_BRANCH="$branch"
+		package="$(echo $_SUB_BRANCH | sed 's|mod_||g' | sed 's|-| |g')"
+		if [ "$branch" == "$SEARCH" ] || [[ "$package" == *$SEARCH* && "$ACTION" == "search"  ]]; then
+			if [[ "$branch" == mod_* ]] || [[ "$package" == *$SEARCH* && "$ACTION" == "search"  ]]; then
+				NORESULTS='true'
+			fi
+		fi
+	done
+
+	for branch in "${BRANCHES[@]}"; do
+		branch="$(echo $branch  | sed 's|origin/||g')"
+		_SUB_BRANCH="$branch"
+		package="$(echo $_SUB_BRANCH | sed 's|mod_||g' | sed 's|-| |g')"
+		if [ "$branch" == "$SEARCH" ] || [[ "$package" == *$SEARCH* && "$ACTION" == "search" ]] || [[ "$NORESULTS" == "true" && "$ACTION" == "search" ]]; then
+			if [[ "$branch" == mod_* ]] || [[ "$package" == *$SEARCH* && "$ACTION" == "search"  ]] || [[ "$NORESULTS" == "true" && "$ACTION" == "search" ]]; then
+				_SUB_SUMMARY_FILE="$(echo $_SUB_BRANCH | sed 's|mod_||g')"
+				_SUB_GH_PACKAGE_URL="https://raw.github.com/$_SUB_REPO_OWNER/$_SUB_REPO/$_SUB_BRANCH/$_SUB_SUMMARY_FILE"
+				_SUB_BRANCH_SUMMARY="$(miami_dade $_SUB_GH_PACKAGE_URL $ACTION | awk '/^[^#]/{p=0} /^# Help:/{p=1} p' | sed 's/^# Help: //;s/^# /\\t\\t\\t\\t/;s/^#/\\n\\t\\t\\t\\t/')" # " | grep '# Summary:' | sed 's|<[^>]*>||g' | sed 's|# Summary:||g' | sed 's/^ *//g')"
+				package_readme="$(echo $_SUB_BRANCH | sed 's|mod_||g')"
+				PACKAGES[${#PACKAGES}]="$branch"
+				if [ "$OLD_ACTION" != "update" ]; then
+					echo -e -n "    $package:"
+					echo -e "\t\t$_SUB_BRANCH_SUMMARY"
+					echo 
+					if [ "$ACTION" == "search" ]; then
+						echo -e "\t\t\t\tsub pm install $branch"
+						echo 
+						continue
+					fi
+				else
+					echo -e -n "    Updating meta data."
+					echo -e "\t\t$package"
+				fi
+
+				cd $_SUB_LINE_PATH
+
+				tmp=`git checkout $branch > /dev/null 2>&1`
+
+				if [ "$ACTION" == "install" ]; then
+					header
+					echo -e "\t\tInstalling $package"
+					echo -e "\t\tGrabbing Package Meta Data"
+					_SUB_PACKAGE_META="$(miami_dade "$_SUB_GH_PACKAGE_URL" "install" "--yes" | sed -n "s/^# Depends:\(.*\)/\1/p")"
+					echo -e "\t\tRequirements Found: $_SUB_PACKAGE_META"
+					echo -e -n "\t\tWould you like to continue? (Yes/No) [Yes]: "
+					read yes_no
+					yes_no="$(echo $yes_no | tr '[A-Z]' '[a-z]')"
+
+					if [ "$yes_no" == "no" ]; then
+						exit
+					elif [ "$yes_no" == "yes" ] || [ "$yes" == "yes" ]; then
+						$_SUB_LINE_PATH/prepare.sh sub
+						mv sub-* $_SUB_ROOT/libexec/
+
+						IFS="," read -a _SUB_COMMAND_DEPENDS <<< "$_SUB_PACKAGE_META"
+						for _SUB_COMMAND_DEPENDS_PACKAGE in "${_SUB_COMMAND_DEPENDS[@]}"
+						do
+							_SUB_DEV_NULL="$(sub pm install $_SUB_COMMAND_DEPENDS_PACKAGE --yes)"
+						done
+					fi
+				elif [ "$ACTION" == "remove" ]; then
+					echo -e "\t\tRemoving $package"
+					echo 
+					for delete_this in `find ./sub-* -type d`
+					do
+						delete_this="$(echo $delete_this | sed 's|./||g')"
+						rm -rf $_SUB_ROOT/libexec/$delete_this
+					done
+				elif [ "$ACTION" == "upgrade" ]; then
+					echo -e "\t\tUpgrading $package"
+					echo 
+					tmp=`git checkout $branch >> /dev/null 2>&1`
+					$_SUB_LINE_PATH/prepare.sh sub
+					mv sub-* $_SUB_ROOT/libexec/
+				fi
+
+				tmp=`git checkout . >> /dev/null 2>&1`
+				tmp=`git checkout master > /dev/null 2>&1`
+			elif [[ "$package" == plugin_* ]]; then 
+				echo "Found Plugin"
+			fi
+		fi
+	done
+	echo 
+	echo "Completed..."
+	echo
+done < "$_SUB_REPOS_PATH"
