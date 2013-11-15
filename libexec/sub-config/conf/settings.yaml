@@ -1,0 +1,14 @@
+databases:
+  example:
+    user: user
+    pass: pass
+    ip: 127.0.0.1
+which:
+  mysql: /usr/bin/mysql
+  mysqldump: /usr/bin/mysqldump
+  git: /usr/bin/git
+logger:
+  user: user
+  pass: pass
+  url: http://sub.loc/log_it.php
+  enabled: false

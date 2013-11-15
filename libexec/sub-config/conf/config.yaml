@@ -1,0 +1,8 @@
+servers:
+  production:
+    username: root
+    wh:
+      bc-wh-01:
+        ip: 255.255.255.255
+        internal: 10.0.0.1
+    

@@ -1,0 +1,54 @@
+#!/usr/bin/env php
+<?php
+# Usage: sub config
+# Summary: Accesses config variables
+
+// Bootstrap!
+require(getenv('_SUB_ROOT') .'/libexec/sub-config/lib/init.php');
+
+// Get params
+$params = $argv;
+unset($params[0]);
+
+// Show config
+echo get_config_by_params($params);
+
+/**
+ * Gets config items by space-deliminated list of paramaters
+ *
+ * @return string
+ * @author Jake A. Smith
+ **/
+function get_config_by_params($params)
+{
+	// Default return empty string
+	$return = '';
+
+	$config = config();
+	foreach($params as $arg)
+	{
+		// If the var doesn't exist just return empty string
+		if(!isset($config[$arg]))
+			return $return;
+
+		// Drill down
+		$config = $config[$arg];
+	}
+
+	// Show everything that's not an array
+	if(!is_array($config))
+	{
+		$return = $config . PHP_EOL;
+	}
+
+	// Show array keys
+	if(is_array($config))
+	{
+		foreach(array_keys($config) as $key)
+		{
+			$return .= $key . PHP_EOL;
+		}
+	}
+
+	return $return;
+}
