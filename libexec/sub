@@ -29,18 +29,37 @@ command_builder=""
 _SUB_COMMAND_IS="false"
 prev_command=""
 
+_SUB_EXECUTABLES=(".sh" ".php" ".py")
+
 for (( i=0; i<=${#commands[@]}; i++ ))
 do
   if [ "${commands[$i]}" != "" ] && [[ "${commands[$i]}" != -* ]]; then
     if [ -d "$path_builder/sub-${commands[$i]}" ]; then
       path_builder="$path_builder/sub-${commands[$i]}"
     fi
+
     if [ -f "$path_builder/sub-${commands[$i]}" ]; then
       prev_command=$command_builder
       command_builder="${commands[$i]}"
       _SUB_COMMAND_IS="true"
     else
       _SUB_COMMAND_IS="false"
+    fi
+
+    if [ "$_SUB_COMMAND_IS"  == "false" ]; then
+      for exe in ${_SUB_EXECUTABLES[@]}; do
+        if [ -f "$path_builder/sub-${commands[$i]}$exe" ]; then
+          prev_command=$command_builder
+          command_builder="${commands[$i]}$exe"
+          _SUB_COMMAND_IS="true"
+        else
+          _SUB_COMMAND_IS="false"
+        fi
+
+        if [ "$_SUB_COMMAND_IS"  == "true" ]; then
+          break
+        fi
+      done
     fi
   fi
 
