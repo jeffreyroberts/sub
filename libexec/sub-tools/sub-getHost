@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Usage: Get Hostname
+# Summary: Example Plugin Command - Get Machine Hostname
+HN=`hostname | awk -F. '{print $1}'`
+echo $HN

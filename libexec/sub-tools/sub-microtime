@@ -1,0 +1,15 @@
+#!/usr/bin/env php
+<?php
+# Usage: cronski microtime
+# Summary: Returns PHP's microtime
+
+/**
+* Simple function to replicate PHP 5 behaviour
+*/
+function microtime_float()
+{
+    list($usec, $sec) = explode(" ", microtime());
+    return ((float)$usec + (float)$sec);
+}
+
+echo microtime_float() . PHP_EOL;

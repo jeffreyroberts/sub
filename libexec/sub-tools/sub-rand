@@ -1,0 +1,3 @@
+#!/bin/bash
+_SUB_RAND=`< /dev/urandom LC_ALL=C tr -dc _A-Z-a-z-0-9 | head -c${2:-32};echo;`
+echo $_SUB_RAND

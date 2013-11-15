@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Usage: cronski log -s "message source" -e [0|1]
+# Summary: Sends log messages to sub logger
+# Original Author: Jake Smith - 2012
+# Modifications by: Jeffrey.L.Roberts@gmail.com
+# Help:
+# The following parameters are sent to Crucial Tools
+#
+# s - (string)  [source]    The source of the message, whether that be a
+#                           command name, web app or your mom.
+# e - (bool)    [status]    Success or failure.
+# m - (string)  [msg]       Any message or command output.
+# r - (int)     [elapsed]   The number of miliseconds the script ran.
+# t - (string)  [tags]      A semicolon delimited list of tags.
+#
+# Example; cronski log -s "cronski" -e 0 -m "cronski check in" -r 0 -t cronski
+#
+
+set -e
+
+if [ "$(sub config logger user)" == "false" ]; then
+    exit
+fi
+
+user=$(sub config logger user)
+pass=$(sub config logger pass)
+
+current_uname=$(uname -n)
+
+log_url=$(sub config logger url)
+log_source=""
+log_status=""
+log_message=""
+log_elapsed=0
+log_tags=""
+log_id=""
+
+while getopts “s:e:m:r:t:i:” OPTION
+do
+     case $OPTION in
+         s)
+             log_source=$OPTARG
+             ;;
+         e)
+             log_status=$OPTARG
+             ;;
+         m)
+             log_message=$OPTARG
+             ;;
+         r)
+             log_elapsed=$OPTARG
+             ;;
+         t)
+             log_tags=$OPTARG
+             ;;
+         i)
+             log_id=$OPTARG
+             ;;
+     esac
+done
+
+# Verify we have a source and status
+if [ -z "$log_source" -o -z "$log_status" ]
+    then
+    cronski help log
+    exit;
+fi
+
+curl -s -u $user:$pass \
+-d "source=$log_source" \
+-d "status=$log_status" \
+-d "msg=$log_message" \
+-d "elapsed=$log_elapsed" \
+-d "tags=$log_tags" \
+-d "uname=$current_uname" \
+-d "id=$log_id" \
+$log_url
