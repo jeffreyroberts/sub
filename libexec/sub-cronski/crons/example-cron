@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Script: Enabled
+# Host: examplhost
+# Cron: 1 1,7,13,19 @ @ @
+# Concurrency: disabled
+
+eval "$(../../../bin/sub init -)"
+
+sub example

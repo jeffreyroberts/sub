@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Usage: cronski manage
+# Summary: Sort like the local crontab
+
+CRONSKI_START=`sub microtime`
+
+eval "$($_SUB_ROOT/bin/sub init -)"
+
+_SUB_RANDOM=`sub tools rand`
+
+_CRONSKI_ROOT="$_SUB_ROOT/libexec/sub-cronski"
+
+OUTPUT_CATCH=`sub tools log -s "cronski" -e 0 -m "cronski check in" -r 0 -t "cronski;check in" -i "$_jlr_RANDOM"`
+
+# Get the current host
+current_host=`sub tools getHost`
+
+# Create a tmp file for new crontab
+CRONS=$_CRONSKI_ROOT/crons/*
+
+# Debug
+# echo $CRONS
+# exit
+
+# #!/usr/bin/env php
+# # <?php
+# # Script: Enabled
+# # Host: WEB05
+# # Cron: 0,20,40 @ @ @ @
+# # Concurrency: disabled
+
+for file in $CRONS
+do 
+	a=1
+
+	while read line	
+	do a=$(($a+1));
+		
+		case $a in
+	         3)				 
+	             ENABLED=$(echo $line | sed 's|# Script: ||g')
+#			echo $ENABLED
+	             ;;
+	         4)
+		     HOST=$(echo $line | sed 's|# Host: ||g')
+#			echo $HOST
+	             ;;
+	         5)
+	             CRON=$(echo $line | sed 's|# Cron: ||g')
+#			echo $CRON
+	             ;;
+	         6)
+	             CONCURRENCY=$(echo $line | sed 's|# Concurrency: ||g')
+#			echo $CONCURRENCY
+	             break;
+	             ;;
+	         *)
+	          ;;
+	     esac
+
+	if [ $a -gt 6 ]
+	then
+		break
+	fi
+
+     done < $file
+
+     NAME=$(basename $file) 
+#     echo $NAME
+
+     if [ "$CONCURRENCY" == "disabled" ]
+     then
+        if [ -f $_CRONSKI_ROOT/lastruns/$NAME.pid ]
+        then
+                echo "continuing because already running, future line of v2 log post"
+                continue
+        fi
+     fi
+
+     echo "$$" > $_CRONSKI_ROOT/lastruns/$NAME.pid
+
+     HN=`hostname | awk -F. '{print $1}'`
+
+     if [ "$HN" != "$HOST" ]
+     then
+            echo "continuing not on $HOST, on $HN"
+            continue
+     fi
+
+     if [ -f $_CRONSKI_ROOT/lastruns/$NAME.time ]
+     then
+	     LASTRUN=`cat $_CRONSKI_ROOT/lastruns/$NAME.time`
+     else
+         LASTRUN=$(date -d "-2 years" +"%Y-%m-%d %H:%M:%S")
+     fi
+
+     now=$(date +"%Y-%m-%d %H:%M:%S") 
+
+     DOEXECUTE=$(/usr/bin/php $_CRONSKI_ROOT/lib/evaluate.php "$LASTRUN" "$now" "$CRON")
+
+     if [ "$DOEXECUTE" == "TRUE" ]
+     then			
+		CRONSKI_CRON_START=`sub tools microtime`
+
+		CRONSKI_OUTPUT=$(eval sub cronski dispatch $(basename $file) $_jlr_RANDOM 2>&1)
+		CRONSKI_STATUS=$?
+
+		CRONSKI_CRON_END=`sub tools microtime`
+		CRONSKI_CRON_RUNTIME=$(echo "$CRONSKI_CRON_END - $CRONSKI_CRON_START" | bc)
+		
+		CRONSKI_LOGID=$(sub tools log -s "$file" -r "$CRONSKI_CRON_RUNTIME" -m "$CRONSKI_OUTPUT" -e "$CRONSKI_STATUS" -i "$_jlr_RANDOM")
+	
+	    NOW=`date +'%F %T'`
+        SETLASTRUN=`echo "$NOW" > $_CRONSKI_ROOT/lastruns/$NAME.time`
+     fi
+
+     rm -rf $_CRONSKI_ROOT/lastruns/$NAME.pid
+done
+
+CRONSKI_END=`sub tools microtime`
+CRONSKI_RUNTIME=$(echo "$CRONSKI_END - $CRONSKI_START" | bc)
+
+OUTPUT_CATCH=`sub tools log -s "cronski" -e 0 -m "cronski check out" -r "$CRONSKI_RUNTIME" -t "cronski;check out" -i "$_jlr_RANDOM"`
+

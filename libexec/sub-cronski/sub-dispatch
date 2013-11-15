@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Usage: sub cronski dispatch [command]
+# Summary: Runs a cron command with a logging wrapper
+
+dispatch_start_time=`sub tools microtime`
+_CRONSKI_ROOT="$_SUB_ROOT/libexec/sub-cronski"
+
+# Verify cronskicommand is a valid cron script
+cronskicommand_file="$_CRONSKI_ROOT/crons/$1"
+cronskicommand_name="$1"
+
+# Check in with log (Possibly move log to jlr, which is soon to be named Syski)
+log_id=$(sub tools log -s "$cronskicommand_name" -r "0" -m "cronski dispatching $cronskicommand_name check in" -e "0" -i "$cronskicommand_name.$2")
+
+current_host=`sub tools getHost`
+
+# Verify cronskicommand exists
+if ! [ -f $cronskicommand_file ]
+	then
+	echo "Subcommand does not exist: $cronskicommand_name"
+	exit 0
+fi
+
+# Verify enabled
+script_enabled=$(grep "^# Script: Enabled" $cronskicommand_file | cut -d ' ' -f2-)
+if [ -z "$script_enabled" ]
+	then
+	echo "Subcommand has not been enabled: $cronskicommand_name"
+fi
+
+# Verify host
+current_host=$(grep "^# Host: $current_host" $cronskicommand_file | cut -d ' ' -f2-)
+if [ -z "$current_host" ]
+	then
+	echo "Subcommand is not for this host: $cronskicommand_name"
+fi
+
+# Start timer
+start_time=`sub tools microtime`
+
+# Run command
+cronskicommand_output=$(eval $cronskicommand_file 2>&1)
+cronskicommand_status=$?
+
+# End timer
+end_time=`sub tools microtime`
+cronskicommand_runtime=$(echo "$end_time - $start_time" | bc)
+
+# Log it
+log_id=$(sub tools log -s "$cronskicommand_name" -r "$cronskicommand_runtime" -m "$cronskicommand_output" -e "$cronskicommand_status" -i "$2.$cronskicommand_name")
+
+# Alert SNS If Failed
+#if [ "$cronskicommand_status" != "0" -a "$(v2 config v2cron debug_mode)" = "off" ]
+#	then
+#	syski sns "$cronskicommand_name failed on $(uname -n) - http://www.v2tactical.com/v2logs/view/$log_id"
+#fi
+
+# End dispatch timer
+dispatch_end_time=`sub tools microtime`
+dispatch_runtime=$(echo "$dispatch_end_time - $dispatch_start_time" | bc)
+
+# Check out with log
+log_id=$(sub tools log -s "$cronskicommand_name" -r "$dispatch_runtime" -m "cronski dispatching $cronskicommand_name check out" -e "$cronskicommand_status" -i "$cronskicommand_name.$2")
+
+# echo "Exit status: $cronskicommand_status"
+# echo "Output: $cronskicommand_output"
+# echo "Runtime: $cronskicommand_runtime"
